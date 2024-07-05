@@ -2,5 +2,5 @@
 
 Nothing here.
 
-All solutions are in the hw* branch.
+All solutions are in hw* branchs.
 
