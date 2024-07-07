@@ -1,4 +1,4 @@
-# CMU 10-714 Deep Learning Systems
+# Homework 2
 
-All solutions are in hw* branchs.
+Public repository and stub/testing code for Homework 2 of 10-714.
 
