@@ -33,36 +33,34 @@ def parse_mnist(image_filesname, label_filename):
                 for MNIST will contain the values 0-9.
     """
     ### BEGIN YOUR SOLUTION
-    f = gzip.open(image_filesname)
-    data = f.read()
-    f.close()
-    h = struct.unpack_from('>IIII', data, 0)
-    offset = struct.calcsize('>IIII')
-    imgNum = h[1]
-    rows = h[2]
-    columns = h[3]
-    pixelString = '>' + str(imgNum * rows * columns) + 'B'
-    pixels = struct.unpack_from(pixelString, data, offset)
-    X = np.reshape(pixels, [imgNum, rows * columns]).astype('float32')
-    X_max = np.max(X)
-    X_min = np.min(X)
-    # X_max = np.max(X, axis=1, keepdims=True)
-    # X_min = np.min(X, axis=1, keepdims=True)
+    with gzip.open(image_filesname, 'r') as f:
+        # first 4 bytes is a magic number
+        magic_number = int.from_bytes(f.read(4), 'big')
+        # second 4 bytes is the number of images
+        image_count = int.from_bytes(f.read(4), 'big')
+        # third 4 bytes is the row count
+        row_count = int.from_bytes(f.read(4), 'big')
+        # fourth 4 bytes is the column count
+        column_count = int.from_bytes(f.read(4), 'big')
+        # rest is the image pixel data, each pixel is stored as an unsigned byte
+        # pixel values are 0 to 255
+        image_data = f.read()
+        images = np.frombuffer(image_data, dtype=np.uint8)\
+            .reshape((image_count, row_count*column_count)).astype(np.float32)
+        min_val=np.min(images)
+        max_val=np.max(images)
+        images=(images - min_val) / (max_val - min_val)
     
-    X_normalized = ((X - X_min) / (X_max - X_min))
-    
-  
-    f = gzip.open(label_filename)
-    data = f.read()
-    f.close()
-    h = struct.unpack_from('>II', data, 0)
-    offset = struct.calcsize('>II')
-    num = h[1]
-    labelString = '>' + str(num) + 'B'
-    labels = struct.unpack_from(labelString, data, offset)
-    y = np.reshape(labels, [num]).astype('uint8')
-    
-    return (X_normalized,y)
+    with gzip.open('data/train-labels-idx1-ubyte.gz', 'r') as f:
+        # first 4 bytes is a magic number
+        magic_number = int.from_bytes(f.read(4), 'big')
+        # second 4 bytes is the number of labels
+        label_count = int.from_bytes(f.read(4), 'big')
+        # rest is the label data, each label is stored as unsigned byte
+        # label values are 0 to 9
+        label_data = f.read()
+        labels = np.frombuffer(label_data, dtype=np.uint8)
+    return images,labels
     ### END YOUR SOLUTION
 
 
