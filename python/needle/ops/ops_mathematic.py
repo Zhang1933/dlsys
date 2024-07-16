@@ -105,7 +105,7 @@ class EWisePow(TensorOp):
 
         a, b = node.inputs[0], node.inputs[1]
         grad_a = out_grad * b * (a ** (b - 1))
-        grad_b = out_grad * (a**b) * array_api.log(a.data)
+        grad_b = out_grad * (a**b) * log(a)
         return grad_a, grad_b
 
 def power(a, b):

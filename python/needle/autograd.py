@@ -14,8 +14,9 @@ TENSOR_COUNTER = 0
 # NOTE: we will import numpy as the array_api
 # as the backend for our computations, this line will change in later homeworks
 import numpy as array_api
-
 NDArray = numpy.ndarray
+
+from .backend_selection import array_api, NDArray
 
 
 class Op:
@@ -178,7 +179,6 @@ class TensorTuple(Value):
         return "needle.TensorTuple" + str(self.tuple())
 
     def __str__(self):
-        print("TensorTuple __str__ class ")
         return self.__repr__()
 
     def __add__(self, other):
@@ -426,7 +426,6 @@ def topo_sort_dfs(node, visited, topo_order):
     topo_order.append(node)
     return True
     ### END YOUR SOLUTION
-
 
 
 ##############################
