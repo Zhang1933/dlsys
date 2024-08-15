@@ -1,10 +1,12 @@
 cmake_minimum_required(VERSION 3.5)
 project(needle C CXX)
-cmake_policy(SET CMP0146 OLD)
+
+set(CMAKE_BUILD_TYPE Debug)
 
 # find correct version of Python
 execute_process(COMMAND python3-config --prefix
   OUTPUT_VARIABLE Python_ROOT_DIR)
+
 find_package(Python COMPONENTS Development Interpreter REQUIRED)
 include_directories(${Python_INCLUDE_DIRS})
 
@@ -17,10 +19,10 @@ find_package(pybind11 PATHS ${__pybind_path})
 
 
 if(NOT MSVC)
-  set(CMAKE_CXX_FLAGS "-std=c++11 -O2 -march=native ${CMAKE_CXX_FLAGS}")
+  set(CMAKE_CXX_FLAGS "-std=c++11  -march=native ${CMAKE_CXX_FLAGS}")
   set(CMAKE_CUDA_STANDARD 14)
 else()
-  set(CMAKE_CXX_FLAGS "/std:c++11 -O2 -march=native ${CMAKE_CXX_FLAGS}")
+  set(CMAKE_CXX_FLAGS "/std:c++11  -march=native ${CMAKE_CXX_FLAGS}")
   set(CMAKE_CUDA_STANDARD 14)
 endif()
 
@@ -34,7 +36,12 @@ list(APPEND LINKER_LIBS ${pybind11_LIBRARIES})
 add_library(ndarray_backend_cpu MODULE src/ndarray_backend_cpu.cc)
 target_link_libraries(ndarray_backend_cpu PUBLIC ${LINKER_LIBS})
 pybind11_extension(ndarray_backend_cpu)
-pybind11_strip(ndarray_backend_cpu)
+if(NOT MSVC AND NOT ${CMAKE_BUILD_TYPE} MATCHES Debug|RelWithDebInfo)
+    # Strip unnecessary sections of the binary on Linux/macOS
+    pybind11_strip(ndarray_backend_cpu)
+else()
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS}  -g -G -keep")
+endif()
 
 
 # directly output to ffi folder
@@ -74,7 +81,10 @@ if(CUDA_FOUND)
 
   target_link_libraries(ndarray_backend_cuda ${LINKER_LIBS})
   pybind11_extension(ndarray_backend_cuda)
-  pybind11_strip(ndarray_backend_cuda)
+if(NOT MSVC AND NOT ${CMAKE_BUILD_TYPE} MATCHES Debug|RelWithDebInfo)
+    # Strip unnecessary sections of the binary on Linux/macOS
+    pybind11_strip(ndarray_backend_cuda)
+endif()
 
   # directly output to ffi folder
   set_target_properties(ndarray_backend_cuda
