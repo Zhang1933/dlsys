@@ -496,9 +496,9 @@ void EwiseTanh(const CudaArray& a, CudaArray* out) {
 const int WARPSIZE=32;
 
 template <const int BM,const int BN,const int BK,const int RowoffsetAs,const int RowoffsetBs>
-__device__ void LoadSharedMEM(scalar_t* As,scalar_t* Bs,const int  RowLAs,const int ColLAs,const int RowLBs,const int ColLBs,int M,int N,int K,scalar_t* A,scalar_t* B,int starposA,int starposB){
+__device__ void LoadSharedMEM(scalar_t* As,scalar_t* Bs,const int  RowLAs,const int ColLAs,const int RowLBs,const int ColLBs,int M,int N,int K,scalar_t* A,scalar_t* B,const int starposArow,const int starposAcol,const int starposBrow,const int starposBcol){
   for(int i=0;i<BM;i+=RowoffsetAs){
-    if(starposA+(RowLAs+i)*K+ColLAs<M*K){
+    if(starposArow+(RowLAs+i)<M&&ColLAs<K){
         As[(ColLAs)*BM+RowLAs+i]=(A+(RowLAs+i)*K+ColLAs)[0];
     }
     else{
@@ -506,7 +506,7 @@ __device__ void LoadSharedMEM(scalar_t* As,scalar_t* Bs,const int  RowLAs,const 
     }
   }
   for(int i=0;i<BK;i+=RowoffsetBs){
-    if(starposB+(RowLBs+i)*BN+ColLBs<N*K){
+    if(starposBrow+(RowLBs+i)<K&&ColLBs<N){
       (Bs+(RowLBs+i)*BN+ColLBs)[0]=(B+(RowLBs+i)*N+ColLBs)[0];
     }
     else{
@@ -543,7 +543,7 @@ __device__ void CalcThreadRes(scalar_t* As,scalar_t* Bs,scalar_t*regN,scalar_t* 
 
 template<const int BK,const int BM,const int BN,const int WM,const int WN,const int TM,const int TN,const int WNITER,const int NUM_THREADS>
 __global__ void __launch_bounds__(NUM_THREADS)
-matmul_128warptiling(scalar_t* A,scalar_t* B,scalar_t* C,uint32_t M, uint32_t N, uint32_t K) {
+matmul_warptiling(scalar_t* A,scalar_t* B,scalar_t* C,uint32_t M, uint32_t N, uint32_t K) {
     const uint Rowblock=blockIdx.y;
     const uint ColBlock=blockIdx.x;
 
@@ -573,54 +573,42 @@ matmul_128warptiling(scalar_t* A,scalar_t* B,scalar_t* C,uint32_t M, uint32_t N,
     
     A+=Rowblock*BM*K;
     B+=ColBlock*BN;
-    C+=(Rowblock*BM+warpRow*WM)*N+ColBlock*BN+warpCol*WN;
-    const uint starposA=Rowblock*BM*K;
-    const uint starposB=ColBlock*BN;
-    const uint starposC=(Rowblock*BM+warpRow*WM)*N+ColBlock*BN+warpCol*WN;
+    // C+=(Rowblock*BM+warpRow*WM)*N+ColBlock*BN+warpCol*WN;
+    int starposArow=Rowblock*BM;
+    int starposAcol=0;
+    int starposBrow=0;
+    int starposBcol=ColBlock*BN;
+    const int starposCRow=(Rowblock*BM+warpRow*WM);
+    const int starposCCol=ColBlock*BN+warpCol*WN;
 
     for(uint idx=0;idx<K; idx+=BK){
 
-      LoadSharedMEM<BM,BN,BK,RowoffsetAs,RowoffsetBs>(As,Bs,RowLAs,ColLAs,RowLBs,ColLBs,M,N,K,A,B,starposA,starposB);
+      LoadSharedMEM<BM,BN,BK,RowoffsetAs,RowoffsetBs>(As,Bs,RowLAs,ColLAs,RowLBs,ColLBs,M,N,K,A,B,starposArow,starposAcol,starposBrow,starposBcol);
       __syncthreads();
       CalcThreadRes<WN,WM,WNsuboffset,WMsuboffset,WNITER,WMITER,BM,BK,BN,TN,TM>(As,Bs,regN,regM,threadRes,warpRow,warpCol,threadInWarpRow,threadInWarpCol);
       A+=BK;
       B+=BK*N;
+      starposAcol+=BK;
+      starposBrow+=BK;
       __syncthreads();
     }
     // load resualt to C
     for(int i=0;i<WMITER;i++){
         for(int j=0;j<WNITER;j++){
-          int C_interim_pos = (i*WMsuboffset) * N + j*WNsuboffset;
+          int C_interim_pos_row = starposCRow+(i*WMsuboffset);
+          int C_interim_pos_col= starposCCol+j*WNsuboffset;
           for(int k=0;k<TM;k++){
             for(int l=0;l<TN;l++){
-              int nowPos=starposC+C_interim_pos+(threadInWarpRow*TM+k)*N
-                +threadInWarpCol*TN+l;
-              if(nowPos<N*M){
-                C[nowPos-starposC]=threadRes[(i*TM+k)*(TN*WNITER)+j*TN+l];
+              int nowPos_row=C_interim_pos_row+(threadInWarpRow*TM+k);
+              int nowPos_col=C_interim_pos_col+threadInWarpCol*TN+l;
+              if(nowPos_row<M&&nowPos_col<N){
+                C[nowPos_row*N+nowPos_col]=threadRes[(i*TM+k)*(TN*WNITER)+j*TN+l];
               }
             }
           }
         }
     }
 }
-
-template <const uint BLOCKSIZE>
-__global__ void global_mem_coalesce(int M, int N, int K, 
-                                          const float *A, const float *B,
-                                           float *C) {
-  const int cRow = blockIdx.x * BLOCKSIZE + (threadIdx.x / BLOCKSIZE);
-  const int cCol = blockIdx.y * BLOCKSIZE + (threadIdx.x % BLOCKSIZE);
-
-  // if statement is necessary to make things work under tile quantization
-  if (cRow < M && cCol < N) {
-    float tmp = 0.0;
-    for (int i = 0; i < K; ++i) {
-      tmp += A[cRow * K + i] * B[i * N + cCol];
-    }
-    C[cRow * N + cCol] =  tmp;
-  }
-}
-
 
 void Matmul(const CudaArray& a, const CudaArray& b, CudaArray* out, uint32_t M, uint32_t N,
             uint32_t P) {
@@ -647,8 +635,7 @@ void Matmul(const CudaArray& a, const CudaArray& b, CudaArray* out, uint32_t M, 
    */
 
   /// BEGIN SOLUTION
-  if(M%128==0&&N%128==0&&P%128==0){
-    // TODO: generalize to not divisible case
+    // TODO: parameter tuning
     const uint Matmul_NUM_THREADS=128;
     const uint BK=16;
     const uint BM=128;
@@ -663,15 +650,9 @@ void Matmul(const CudaArray& a, const CudaArray& b, CudaArray* out, uint32_t M, 
     dim3 gridDim(CEIL_DIV(P,BN),CEIL_DIV(M,BM));
     // sgemmWarptiling<BM,BN,BK,WM,WN,WNITER,TM,TN,Matmul_NUM_THREADS>
     // <<<gridDim,blockDim>>>(M,P,N,1.0,a.ptr,b.ptr,0,out->ptr);
-    matmul_128warptiling<BK,BM,BN,WM,WN,TM,TN,WNITER,Matmul_NUM_THREADS>
+    matmul_warptiling<BK,BM,BN,WM,WN,TM,TN,WNITER,Matmul_NUM_THREADS>
     <<<gridDim,blockDim>>>(a.ptr,b.ptr,out->ptr,M,P,N);
     cudaCheckErrors("kernel");
-  }
-  else {
-    dim3 blockDim(32*32);
-    dim3 gridDim(CEIL_DIV(P,32),CEIL_DIV(M,32));
-    global_mem_coalesce<32><<<gridDim,blockDim>>>(M,P,N,a.ptr,b.ptr,out->ptr);
-  }
   /// END SOLUTION
 }
 
