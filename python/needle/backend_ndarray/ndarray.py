@@ -525,7 +525,7 @@ class NDArray:
             def tile(a, tile):
                 return a.as_strided(
                     (a.shape[0] // tile, a.shape[1] // tile, tile, tile),
-                    (a.shape[1] * tile, tile, self.shape[1], 1),
+                    (a.shape[1] * tile, tile, a.shape[1], 1),
                 )
 
             t = self.device.__tile_size__
@@ -548,11 +548,16 @@ class NDArray:
             return out
 
     ### Reductions, i.e., sum/max over all element or over given axis
-    def reduce_view_out(self, axis):
-        """Return a view to the array set up for reduction functions and output array."""
+    def reduce_view_out(self, axis, keepdims=False):
+        """ Return a view to the array set up for reduction functions and output array. """
+        if isinstance(axis, tuple) and not axis:
+            raise ValueError("Empty axis in reduce")
+
         if axis is None:
-            view = self.reshape((1,) * (self.ndim - 1) + (prod(self.shape),))
-            out = NDArray.make((1,) * self.ndim, device=self.device)
+            view = self.compact().reshape((1,) * (self.ndim - 1) + (prod(self.shape),))
+            #out = NDArray.make((1,) * self.ndim, device=self.device)
+            out = NDArray.make((1,), device=self.device)
+
         else:
             if isinstance(axis, (tuple, list)):
                 assert len(axis) == 1, "Only support reduction over a single axis"
@@ -562,21 +567,41 @@ class NDArray:
                 tuple([a for a in range(self.ndim) if a != axis]) + (axis,)
             )
             out = NDArray.make(
-                tuple([1 if i == axis else s for i, s in enumerate(self.shape)]),
+                tuple([1 if i == axis else s for i, s in enumerate(self.shape)])
+                if keepdims else
+                tuple([s for i, s in enumerate(self.shape) if i != axis]),
                 device=self.device,
             )
         return view, out
 
-    def sum(self, axis=None):
-        view, out = self.reduce_view_out(axis)
+    def sum(self, axis=None, keepdims=False):
+        view, out = self.reduce_view_out(axis, keepdims=keepdims)
         self.device.reduce_sum(view.compact()._handle, out._handle, view.shape[-1])
         return out
 
-    def max(self, axis=None):
-        view, out = self.reduce_view_out(axis)
+    def max(self, axis=None, keepdims=False):
+        view, out = self.reduce_view_out(axis, keepdims=keepdims)
         self.device.reduce_max(view.compact()._handle, out._handle, view.shape[-1])
         return out
 
+    def flip(self, axes):
+        """
+        Flip this ndarray along the specified axes.
+        Note: compact() before returning.
+        """
+        ### BEGIN YOUR SOLUTION
+        raise NotImplementedError()
+        ### END YOUR SOLUTION
+
+    def pad(self, axes):
+        """
+        Pad this ndarray by zeros by the specified amount in `axes`,
+        which lists for _all_ axes the left and right padding amount, e.g.,
+        axes = ( (0, 0), (1, 1), (0, 0)) pads the middle axis with a 0 on the left and right side.
+        """
+        ### BEGIN YOUR SOLUTION
+        raise NotImplementedError()
+        ### END YOUR SOLUTION
 
 def array(a, dtype="float32", device=None):
     """Convenience methods to match numpy a bit more closely."""
@@ -619,5 +644,9 @@ def tanh(a):
     return a.tanh()
 
 
-def sum(a, axis=None):
-    return a.sum(axis=axis)
+def sum(a, axis=None, keepdims=False):
+    return a.sum(axis=axis, keepdims=keepdims)
+
+
+def flip(a, axes):
+    return a.flip(axes)
