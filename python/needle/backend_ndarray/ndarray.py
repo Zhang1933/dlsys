@@ -304,11 +304,14 @@ class NDArray:
         """
 
         ### BEGIN YOUR SOLUTION
-        for new_size,size in zip(new_shape,self.shape):
-            if size!=1 and new_size!=size:
+        len_diff = len(new_shape) - len(self.shape)
+        new_strides = [0] * len_diff + list(self.strides)
+        for i,size in enumerate(self.shape):
+            if size!=1 and new_shape[i+len_diff]!=size:
                 raise AssertionError()
-        strides=tuple([ stride if size!=1 else 0 for stride,size in zip( self.strides,self.shape)])
-        return self.make(strides=strides,shape=new_shape,device=self.device,handle=self._handle)
+            if size == 1:
+                new_strides[i+len_diff]=0
+        return self.make(strides=new_strides,shape=new_shape,device=self.device,handle=self._handle)
         ### END YOUR SOLUTION
 
     ### Get and set elements
@@ -590,7 +593,12 @@ class NDArray:
         Note: compact() before returning.
         """
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        offset=self._offset
+        strides=list(self.strides)
+        for axis in axes:
+            offset+=(self.shape[axis]-1)*self.strides[axis]
+            strides[axis]*=-1
+        return NDArray.make(shape=self.shape,strides=tuple(strides),offset=offset,device=self.device,handle=self._handle).compact()
         ### END YOUR SOLUTION
 
     def pad(self, axes):
@@ -600,7 +608,11 @@ class NDArray:
         axes = ( (0, 0), (1, 1), (0, 0)) pads the middle axis with a 0 on the left and right side.
         """
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        newshape=tuple([s+a[0]+a[1] for s,a in zip(self.shape,axes)])
+        res=full(newshape,fill_value=0,dtype=self.dtype,device=self.device)
+        idxs=[slice(axe[0],s-axe[1],None) for s ,axe in zip(newshape,axes)]
+        res[tuple(idxs)]=self
+        return res
         ### END YOUR SOLUTION
 
 def array(a, dtype="float32", device=None):

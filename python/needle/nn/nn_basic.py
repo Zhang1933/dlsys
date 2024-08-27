@@ -88,9 +88,9 @@ class Linear(Module):
         self.out_features = out_features
 
         ### BEGIN YOUR SOLUTION
-        self.weight=Parameter(init.kaiming_uniform(in_features,out_features,dtype=dtype))
+        self.weight=Parameter(init.kaiming_uniform(in_features,out_features,dtype=dtype,device=device))
         if bias:
-            self.bias=Parameter(init.kaiming_uniform(out_features,1,dtype=dtype).reshape((1,out_features)))
+            self.bias=Parameter(init.kaiming_uniform(out_features,1,dtype=dtype,device=device).reshape((1,out_features)))
         else:
             self.bias=None
         ### END YOUR SOLUTION
@@ -137,7 +137,7 @@ class Sequential(Module):
 class SoftmaxLoss(Module):
     def forward(self, logits: Tensor, y: Tensor):
         ### BEGIN YOUR SOLUTION
-        one_hot=init.one_hot(logits.shape[-1],y)
+        one_hot=init.one_hot(logits.shape[-1],y,device=y.device)
         label_logit=(one_hot*logits).sum((len(logits.shape)-1,))
         return  (ops.logsumexp(logits,axes=(1,))-label_logit).sum(0)/logits.shape[0]
         ### END YOUR SOLUTION

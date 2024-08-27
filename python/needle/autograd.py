@@ -387,10 +387,10 @@ def compute_gradient_of_variables(output_tensor, out_grad):
         else:
             dic[k].append(v)
     for node in reverse_topo_order:
-        vi_adj=sum(node_to_output_grads_list[node])
+        vi_adj=sum_node_list(node_to_output_grads_list[node])
         node.grad=vi_adj
         if not node.is_leaf():
-            partial_adj=node.op.gradient(vi_adj,node)
+            partial_adj=node.op.gradient_as_tuple(vi_adj,node)
             for i in range(len(node.inputs)):
                 add_f(node.inputs[i],partial_adj[i],node_to_output_grads_list)
     ### END YOUR SOLUTION

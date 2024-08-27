@@ -11,13 +11,33 @@ class ResNet9(ndl.nn.Module):
     def __init__(self, device=None, dtype="float32"):
         super().__init__()
         ### BEGIN YOUR SOLUTION ###
-        raise NotImplementedError() ###
-        ### END YOUR SOLUTION
+        self.device=device
+        self.dtype=dtype
+        def ConvBN(a,b,k,s,device=self.device):
+            return nn.Sequential(nn.Conv(a,b,kernel_size=k,stride=s,device=device),
+                                 nn.BatchNorm2d(dim=b,device=self.device),
+                                 nn.ReLU())
 
+        self.model=nn.Sequential(ConvBN(3,16,7,4),
+                                 ConvBN(16,32,3,2),
+                                 nn.Residual(nn.Sequential(ConvBN(32,32,3,1),
+                                                            ConvBN(32,32,3,1))),
+                                    ConvBN(32,64,3,2),
+                                    ConvBN(64,128,3,2),
+                                    nn.Residual(nn.Sequential(ConvBN(128,128,3,1),
+                                                              ConvBN(128,128,3,1))),
+                                    nn.Flatten(),
+                                    nn.Linear(128,128,device=self.device),
+                                    nn.ReLU(),
+                                    nn.Linear(128,10,device=self.device))
+
+        ### END YOUR SOLUTION
     def forward(self, x):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        return self.model(x)
         ### END YOUR SOLUTION
+
+
 
 
 class LanguageModel(nn.Module):
@@ -62,4 +82,4 @@ if __name__ == "__main__":
     model(x)
     cifar10_train_dataset = ndl.data.CIFAR10Dataset("data/cifar-10-batches-py", train=True)
     train_loader = ndl.data.DataLoader(cifar10_train_dataset, 128, ndl.cpu(), dtype="float32")
-    print(dataset[1][0].shape)
+    # print(dataset[1][0].shape)
