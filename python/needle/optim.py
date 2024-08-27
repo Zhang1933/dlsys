@@ -25,15 +25,6 @@ class SGD(Optimizer):
 
     def step(self):
         ### BEGIN YOUR SOLUTION
-        # for i,p in enumerate(self.params):
-        #     if i not  in self.u:
-        #         self.u[i]=0
-        #     grad=p.grad.data+self.weight_decay*p.data
-        #     self.u[i]=self.momentum*self.u[i]+(1-self.momentum)*grad
-        #     p.data=p.data-self.lr*self.u[i]
-        ### END YOUR SOLUTION
-        
-        ### BEGIN YOUR SOLUTION
         for i, param in enumerate(self.params):
             if i not in self.u:
                 self.u[i] = 0
@@ -47,7 +38,11 @@ class SGD(Optimizer):
         Clips gradient norm of parameters.
         """
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        for param in self.params:
+            g = param.grad.detach()
+            norm = (g ** 2).sum().detach()
+            if norm > max_norm:
+                param.grad = param.grad / (norm / max_norm) ** 0.5
         ### END YOUR SOLUTION
 
 
