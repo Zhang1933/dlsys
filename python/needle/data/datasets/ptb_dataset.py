@@ -120,6 +120,8 @@ def get_batch(batches, i, bptt, device=None, dtype=None):
     """
     ### BEGIN YOUR SOLUTION
     data, target = batches[i : i + bptt, :], batches[i + 1 : i + bptt + 1, :]
+    if data.shape!=target.shape:
+        return None,None
     return Tensor(data, device=device, dtype=dtype), Tensor(
         target.reshape(bptt * batches.shape[1]), device=device, dtype=dtype
     )

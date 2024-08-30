@@ -1,4 +1,5 @@
 #include <cassert>
+#include <cmath>
 #include <cstdio>
 #include <cuda_runtime.h>
 #include <pybind11/numpy.h>
@@ -498,7 +499,7 @@ const int WARPSIZE=32;
 template <const int BM,const int BN,const int BK,const int RowoffsetAs,const int RowoffsetBs>
 __device__ void LoadSharedMEM(scalar_t* As,scalar_t* Bs,const int  RowLAs,const int ColLAs,const int RowLBs,const int ColLBs,int M,int N,int K,scalar_t* A,scalar_t* B,const int starposArow,const int starposAcol,const int starposBrow,const int starposBcol){
   for(int i=0;i<BM;i+=RowoffsetAs){
-    if(starposArow+(RowLAs+i)<M&&ColLAs<K){
+    if(starposArow+(RowLAs+i)<M&&starposAcol+ColLAs<K){
         As[(ColLAs)*BM+RowLAs+i]=(A+(RowLAs+i)*K+ColLAs)[0];
     }
     else{
@@ -506,7 +507,7 @@ __device__ void LoadSharedMEM(scalar_t* As,scalar_t* Bs,const int  RowLAs,const 
     }
   }
   for(int i=0;i<BK;i+=RowoffsetBs){
-    if(starposBrow+(RowLBs+i)<K&&ColLBs<N){
+    if(starposBrow+(RowLBs+i)<K&&starposBcol+ColLBs<N){
       (Bs+(RowLBs+i)*BN+ColLBs)[0]=(B+(RowLBs+i)*N+ColLBs)[0];
     }
     else{
@@ -638,12 +639,12 @@ void Matmul(const CudaArray& a, const CudaArray& b, CudaArray* out, uint32_t M, 
     // TODO: parameter tuning
     const uint Matmul_NUM_THREADS=128;
     const uint BK=16;
-    const uint BM=128;
-    const uint BN=128;
-    const uint WM=64;
-    const uint WN=64;
+    const uint BM=64;
+    const uint BN=64;
+    const uint WM=32;
+    const uint WN=32;
     const uint TM=4;
-    const uint TN=4;
+    const uint TN=2;
     const uint WNITER=4;
 
     dim3 blockDim(Matmul_NUM_THREADS);
@@ -692,7 +693,7 @@ __global__ void reduce_ws(float *a, float *out,size_t reduce_size,T f,const floa
 
 CudaDims CudaDimReduce(size_t out_size,size_t re_ducesize) {
   CudaDims dim;
-  size_t block_size = min((size_t)BASE_THREAD_NUM*4,re_ducesize);
+  size_t block_size = (size_t)BASE_THREAD_NUM;
   block_size=(block_size + 31) & (~31);
   size_t num_blocks = out_size;
   dim.block = dim3(block_size, 1, 1);
@@ -714,12 +715,22 @@ void ReduceMax(const CudaArray& a, CudaArray* out, size_t reduce_size) {
   CudaDims dim = CudaDimReduce(out->size,reduce_size);
   func_two_op h_pointFunction;
   getFuncHostPtr(e_Max,h_pointFunction);
-  reduce_ws<<<dim.grid, dim.block>>>(a.ptr, out->ptr,reduce_size,h_pointFunction,-10.0);
+  reduce_ws<<<dim.grid, dim.block>>>(a.ptr, out->ptr,reduce_size,h_pointFunction,-std::numeric_limits<float>::infinity());
   cudaCheckErrors("kernel");
   /// END SOLUTION
 }
 
-
+__global__ void ReduceSumKernel(const scalar_t* a, scalar_t* out, size_t reduce_size, size_t size) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < size) {
+    size_t offset = i * reduce_size;
+    scalar_t reduce_sum = 0;
+    for (size_t j = 0; j < reduce_size; j++) {
+      reduce_sum += a[offset + j];
+    }
+    out[i] = reduce_sum;
+  }
+}
 
 void ReduceSum(const CudaArray& a, CudaArray* out, size_t reduce_size) {
   /**
@@ -732,11 +743,8 @@ void ReduceSum(const CudaArray& a, CudaArray* out, size_t reduce_size) {
    *   redice_size: size of the dimension to reduce over
    */
   /// BEGIN SOLUTION
-  CudaDims dim = CudaDimReduce(out->size,reduce_size);
-  func_two_op h_pointFunction;
-  getFuncHostPtr(e_Add,h_pointFunction);
-  reduce_ws<<<dim.grid, dim.block>>>(a.ptr, out->ptr,reduce_size,h_pointFunction);
-  cudaCheckErrors("kernel");
+  CudaDims dim = CudaOneDim(out->size);
+  ReduceSumKernel<<<dim.grid, dim.block>>>(a.ptr, out->ptr, reduce_size, out->size);
   /// END SOLUTION
 }
 

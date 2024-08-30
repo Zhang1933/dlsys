@@ -97,10 +97,14 @@ class Linear(Module):
 
     def forward(self, X: Tensor) -> Tensor:
         ### BEGIN YOUR SOLUTION
+        origin_shape = list(X.shape)
+        batch_size = int(np.prod(origin_shape)) // self.in_features
+        X = X.reshape((batch_size, self.in_features))
         y=X@self.weight
         if self.bias:
             y+=self.bias.broadcast_to(shape=y.shape)
-        return y
+        origin_shape[-1] = self.out_features
+        return y.reshape(tuple(origin_shape))
         ### END YOUR SOLUTION
 
 
@@ -197,10 +201,10 @@ class LayerNorm1d(Module):
 
     def forward(self, x: Tensor) -> Tensor:
         ### BEGIN YOUR SOLUTION
-        # needle没有默认广播机制，反向传播的时候有问题
-        Ex=(x.sum((1,))/x.shape[1]).reshape((x.shape[0],1)).broadcast_to(x.shape)
-        Var=(((x-Ex)*(x-Ex)).sum((1,))/x.shape[1]).reshape((x.shape[0],1)).broadcast_to(x.shape)
-        return self.weight.broadcast_to(x.shape)*(x-Ex)/((Var+self.eps)**(0.5))+self.bias.broadcast_to(x.shape)
+        mean = (x.sum((1,)) / x.shape[1]).reshape((x.shape[0], 1)).broadcast_to(x.shape)
+        var = (((x - mean) ** 2).sum((1,)) / x.shape[1]).reshape((x.shape[0], 1)).broadcast_to(x.shape)
+        scalar = (x - mean) / ((var + self.eps) ** 0.5)
+        return self.weight.reshape((1, self.dim)).broadcast_to(x.shape) * scalar + self.bias.reshape((1, self.dim)).broadcast_to(x.shape)
         ### END YOUR SOLUTION
 
 
@@ -212,7 +216,7 @@ class Dropout(Module):
     def forward(self, x: Tensor) -> Tensor:
         ### BEGIN YOUR SOLUTION
         if self.training:
-            x=x*init.randb(*x.shape,p=1-self.p,device=x.device)/(1-self.p)
+            x=x*init.randb(*x.shape,p=1-self.p,device=x.device,dtype=x.dtype)/(1-self.p)
         return x
         ### END YOUR SOLUTION
 

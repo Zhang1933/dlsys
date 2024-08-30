@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.5)
 project(needle C CXX)
 
+set( CMAKE_VERBOSE_MAKEFILE on )
 set(CMAKE_BUILD_TYPE Debug)
 
 # find correct version of Python
@@ -19,7 +20,7 @@ find_package(pybind11 PATHS ${__pybind_path})
 
 
 if(NOT MSVC)
-  set(CMAKE_CXX_FLAGS "-std=c++11  -march=native ${CMAKE_CXX_FLAGS}")
+  set(CMAKE_CXX_FLAGS "-std=c++11 -march=native ${CMAKE_CXX_FLAGS}")
   set(CMAKE_CUDA_STANDARD 14)
 else()
   set(CMAKE_CXX_FLAGS "/std:c++11  -march=native ${CMAKE_CXX_FLAGS}")
@@ -75,6 +76,8 @@ if(CUDA_FOUND)
     # set to 3.7 the flag of K80
     CUDA_SELECT_NVCC_ARCH_FLAGS(ARCH_FLAGS 3.7)
   endif()
+
+  #  set( CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS}" "-G -lineinfo" )
 
   # set arch flags properly
   CUDA_ADD_LIBRARY(ndarray_backend_cuda MODULE src/ndarray_backend_cuda.cu OPTIONS ${ARCH_FLAGS})

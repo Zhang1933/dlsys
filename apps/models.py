@@ -42,7 +42,7 @@ class ResNet9(ndl.nn.Module):
 
 class LanguageModel(nn.Module):
     def __init__(self, embedding_size, output_size, hidden_size, num_layers=1,
-                 seq_model='rnn', device=None, dtype="float32"):
+                 seq_model='transformer', seq_len=20,device=None, dtype="float32"):
         """
         Consists of an embedding layer, a sequence model (either RNN or LSTM), and a
         linear layer.
@@ -55,7 +55,16 @@ class LanguageModel(nn.Module):
         """
         super(LanguageModel, self).__init__()
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        self.embedding_size = embedding_size
+        self.output_size = output_size
+        self.hidden_size = hidden_size
+        self.embedding = nn.Embedding(output_size, embedding_size, device=device, dtype=dtype)
+        if seq_model == 'transformer':
+            self.seq_model = nn.Transformer(embedding_size, hidden_size, num_layers, device=device, dtype=dtype, sequence_len = seq_len)
+        else:
+            raise ValueError('Not supported yet')
+        self.linear = nn.Linear(self.embedding_size, output_size, device=device, dtype=dtype)
+        self.softmax=nn.SoftmaxLoss()
         ### END YOUR SOLUTION
 
     def forward(self, x, h=None):
@@ -72,7 +81,12 @@ class LanguageModel(nn.Module):
             else h is tuple of (h0, c0), each of shape (num_layers, bs, hidden_size)
         """
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        seq_len, bs = x.shape
+        x_embedding = self.embedding(x)
+        out, h = self.seq_model(x_embedding, h)
+        out = out.reshape((seq_len * bs, self.embedding_size))
+        out = self.linear(out)
+        return out, h
         ### END YOUR SOLUTION
 
 

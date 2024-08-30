@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 import torch
 import itertools
-import mugrade
+# import mugrade
 import os
 
 import needle as ndl
@@ -208,7 +208,13 @@ def test_transformer_model(
     with open(labels_path, 'rb') as f:
         label_result = np.load(f)
 
-    np.testing.assert_allclose(result, label_result, atol=1e-5, rtol=1e-5)
+    try:
+        np.testing.assert_allclose(result, label_result, atol=1e-5, rtol=1e-5)
+    finally:
+        d = ~np.isclose(result, label_result, atol=1e-5, rtol=1e-5)
+        print(result.shape)
+        print(label_result[d])
+        print(result[d])
 
 
 def submit_attention_activation():

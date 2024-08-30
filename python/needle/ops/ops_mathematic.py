@@ -201,6 +201,22 @@ class Transpose(TensorOp):
 def transpose(a, axes=None):
     return Transpose(axes)(a)
 
+class Permute(TensorOp):
+    def __init__(self, axes: tuple):
+        self.axes = axes
+
+    def compute(self, a):
+        ### BEGIN YOUR SOLUTION
+        return a.compact().permute(self.axes)
+        ### END YOUR SOLUTION
+
+    def gradient(self, out_grad, node):
+        ### BEGIN YOUR SOLUTION
+        return out_grad.permute(self.axes)
+        ### END YOUR SOLUTION
+
+def permute(a, axes):
+    return Permute(axes)(a)
 
 class Reshape(TensorOp):
     def __init__(self, shape):
@@ -224,7 +240,7 @@ class BroadcastTo(TensorOp):
         self.shape = shape
 
     def compute(self, a):
-        return array_api.broadcast_to(a,self.shape)
+        return a.compact().broadcast_to(self.shape)
 
     def gradient(self, out_grad, node):
         ### BEGIN YOUR SOLUTION
