@@ -5,6 +5,8 @@ import gzip
 import numpy as np
 
 import sys
+import gc
+
 
 sys.path.append("python/")
 import needle as ndl
@@ -231,7 +233,7 @@ def epoch_general_ptb(data, model, seq_len=40, loss_fn=nn.SoftmaxLoss(), opt=Non
             if clip is not None:
                 ndl.nn.utils.clip_grad_norm(model.parameters(), clip)
             opt.step()
-
+        gc.collect()
         losses.append(loss.numpy())
         accs.append((out.numpy().argmax(axis=1) == y.numpy()).sum() / y.shape[0])
         if (i//seq_len)%20==0:
@@ -239,7 +241,6 @@ def epoch_general_ptb(data, model, seq_len=40, loss_fn=nn.SoftmaxLoss(), opt=Non
         del X, y, out, loss
     return np.mean(accs), np.mean(losses)
     ### END YOUR SOLUTION
-
 
 def train_ptb(model, data, seq_len=40, n_epochs=1, optimizer=ndl.optim.SGD,
           lr=4.0, weight_decay=0.0, loss_fn=nn.SoftmaxLoss(), clip=None,
